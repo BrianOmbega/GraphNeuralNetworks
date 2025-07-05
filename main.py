@@ -3,9 +3,11 @@ from dotenv import load_dotenv
 from azure.identity import DefaultAzureCredential
 from azure.ai.ml import MLClient
 from azure.ai.ml import command
-from azure.ai.ml.entities import Data
 from azure.ai.ml.entities import Environment
 from azure.ai.ml import Input
+
+# NOTE: Data asset registration has been moved to register_data_assets.py.
+# Please run that script before submitting jobs to ensure all assets are registered.
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,28 +35,6 @@ try:
     print(f"Successfully connected! Found {len(computes)} compute resources in the workspace.")
 except Exception as e:
     print(f"Failed to connect or list computes: {e}")
-
-# Register all_taxpayers.xlsx as a data asset only if it does not exist
-try:
-    existing_asset = ml_client.data.get(name="all_taxpayers_csv", version="6")
-    print(f"Data asset already exists: {existing_asset.id}")
-    excel_asset = existing_asset
-except Exception:
-    excel_asset = Data(
-        path="all_taxpayers.csv",
-        type="uri_file",
-        description="VAT data CSV",
-        name="all_taxpayers_csv",
-        version="6"
-    )
-    excel_asset = ml_client.data.create_or_update(excel_asset)
-    print(f"Registered data asset: {excel_asset.id}")
-
-# Print local file size for verification
-if os.path.exists("all_taxpayers.csv"):
-    print(f"Local all_taxpayers.csv size: {os.path.getsize('all_taxpayers.csv')} bytes")
-else:
-    print("Local all_taxpayers.csv not found!")
 
 # Register custom environment if not exists
 try:
