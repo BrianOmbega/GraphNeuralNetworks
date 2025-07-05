@@ -1,5 +1,5 @@
 azure-ai-ml
 azure-identity
-torch
-torch-geometric
 pandas
+python-dotenv
+xlrd
