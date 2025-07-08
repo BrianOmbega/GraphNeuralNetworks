@@ -1,13 +1,20 @@
 name: gnn-env
 channels:
   - defaults
+  - conda-forge
+  - pytorch
 dependencies:
-  - python=3.8
+  - python=3.9
   - pip
+  - pandas
+  - numpy
+  - scikit-learn
+  - pytorch
+  - networkx
   - pip:
+      - torch-geometric
       - azure-ai-ml
       - azure-identity
-      - pandas
       - python-dotenv
       - xlrd
       - openpyxl

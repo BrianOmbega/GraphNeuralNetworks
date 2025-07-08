@@ -4,6 +4,15 @@ from azure.identity import DefaultAzureCredential
 from azure.ai.ml import MLClient
 from azure.ai.ml.entities import Data
 
+# ---
+# To delete a data asset from Azure ML, uncomment and use the following lines:
+# try:
+#     ml_client.data.delete(name='all_taxpayers_csv', version='1')
+#     print('Deleted data asset: all_taxpayers_csv version 1')
+# except Exception as e:
+#     print(f'Error deleting data asset: {e}')
+# ---
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -35,6 +44,14 @@ data_assets = [
         'version': '1',
         'type': 'uri_file'
     },
+    {
+    'name': 'transaction_graph',
+    'path': 'data assets/graph_data.pt',
+    'description': 'VAT transaction graph ',
+    'version': '1',
+    'type': 'uri_file'
+    }
+
     # Add more assets here
 ]
 
