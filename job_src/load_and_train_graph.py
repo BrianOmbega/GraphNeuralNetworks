@@ -1,6 +1,7 @@
 # This file was moved to job_src/load_and_train_graph.py. Please use that version for Azure ML jobs.
 
 import os
+import sys
 import torch
 from torch_geometric.data import Data
 from sklearn.model_selection import train_test_split
@@ -14,8 +15,10 @@ from sklearn.metrics import (
     f1_score, confusion_matrix, roc_auc_score, average_precision_score
 )
 import pandas as pd
-from models import GAT, GCN, GIN
+from models import GAT, GCN, GIN, GraphSAGE
 import time
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--graph_data', type=str, required=True, help='Path to graph_data.pt file')
@@ -50,18 +53,6 @@ def to_torch_edges(edges, labels, attrs):
 train_edge_index, train_edge_label, train_edge_attr = to_torch_edges(X_train, y_train, attr_train)
 val_edge_index, val_edge_label, val_edge_attr = to_torch_edges(X_val, y_val, attr_val)
 test_edge_index, test_edge_label, test_edge_attr = to_torch_edges(X_test, y_test, attr_test)
-
-# Define GraphSAGE model
-class GraphSAGE(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels):
-        super().__init__()
-        self.conv1 = SAGEConv(in_channels, hidden_channels)
-        self.conv2 = SAGEConv(hidden_channels, hidden_channels)
-
-    def forward(self, x, edge_index):
-        x = F.relu(self.conv1(x, edge_index))
-        x = self.conv2(x, edge_index)
-        return x
 
 # Define Edge Classifier
 class EdgeClassifier(nn.Module):
@@ -202,8 +193,8 @@ print(f"[INFO] Training log saved to {log_txt_path}")
 model_configs = [
     ("GraphSAGE", GraphSAGE, {"in_channels": data.num_node_features, "hidden_channels": 64}),
     ("GAT", GAT, {"in_channels": data.num_node_features, "hidden_channels": 64, "heads": 2}),
-    ("GCN", GCN, {"in_channels": data.num_node_features, "hidden_channels": 64}),
-    ("GIN", GIN, {"in_channels": data.num_node_features, "hidden_channels": 64}),
+    ("GCN", GCN, {"in_channels": data.num_node_features, "hidden_channels": 64})
+#    ("GIN", GIN, {"in_channels": data.num_node_features, "hidden_channels": 64}),
 ]
 
 all_metrics = []
