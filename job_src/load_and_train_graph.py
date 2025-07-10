@@ -15,7 +15,7 @@ from sklearn.metrics import (
     f1_score, confusion_matrix, roc_auc_score, average_precision_score
 )
 import pandas as pd
-from models import GAT, GCN, GIN, GraphSAGE
+from models import GAT, GCN, GraphSAGE, EdgeClassifier
 import time
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -54,26 +54,8 @@ train_edge_index, train_edge_label, train_edge_attr = to_torch_edges(X_train, y_
 val_edge_index, val_edge_label, val_edge_attr = to_torch_edges(X_val, y_val, attr_val)
 test_edge_index, test_edge_label, test_edge_attr = to_torch_edges(X_test, y_test, attr_test)
 
-# Define Edge Classifier
-class EdgeClassifier(nn.Module):
-    def __init__(self, emb_dim, edge_feat_dim):
-        super(EdgeClassifier, self).__init__()
-        self.fc1 = nn.Linear(2 * emb_dim + edge_feat_dim, 64)
-        self.fc2 = nn.Linear(64, 1)
-
-    def forward(self, z, edge_index, edge_attr):
-        src = z[edge_index[0]]
-        dst = z[edge_index[1]]
-        x = torch.cat([src, dst, edge_attr], dim=1)
-        x = F.relu(self.fc1(x))
-        return torch.sigmoid(self.fc2(x)).squeeze()
-
 # Training setup
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = GraphSAGE(in_channels=data.num_node_features, hidden_channels=64).to(device)
-edge_classifier = EdgeClassifier(emb_dim=64, edge_feat_dim=train_edge_attr.shape[1]).to(device)
-optimizer = torch.optim.Adam(list(model.parameters()) + list(edge_classifier.parameters()), lr=0.005)
-loss_fn = nn.BCELoss()
 data = data.to(device)
 
 # Move edge splits to device
@@ -84,111 +66,6 @@ val_edge_index = val_edge_index.to(device)
 val_edge_label = val_edge_label.to(device)
 val_edge_attr = val_edge_attr.to(device)
 
-print("[INFO] Initializing models and optimizer...")
-# Training loop
-print("[INFO] Starting training loop...")
-train_log = []  # Collect (epoch, train_loss, val_acc)
-for epoch in range(1, 101):
-    model.train()
-    optimizer.zero_grad()
-    z = model(data.x, data.edge_index)
-    pred = edge_classifier(z, train_edge_index, train_edge_attr)
-    loss = loss_fn(pred, train_edge_label)
-    loss.backward()
-    optimizer.step()
-    if epoch % 10 == 0 or epoch == 1:
-        model.eval()
-        with torch.no_grad():
-            val_pred = edge_classifier(z, val_edge_index, val_edge_attr)
-            val_loss = loss_fn(val_pred, val_edge_label)
-            val_acc = ((val_pred > 0.5) == val_edge_label).float().mean()
-            print(f"[INFO] Epoch {epoch:03d} | Train Loss: {loss.item():.4f} | Val Acc: {val_acc:.4f}")
-            train_log.append((epoch, loss.item(), val_acc.item()))
-print("[INFO] Training complete. Running inference on test set...")
-
-# Inference on test set
-model.eval()
-with torch.no_grad():
-    z = model(data.x, data.edge_index)
-    test_pred = edge_classifier(z, test_edge_index, test_edge_attr)
-
-# Compute and save test metrics
-
-# Convert to numpy
-true_labels = test_edge_label.cpu().numpy().astype(int)
-predicted_probs = test_pred.cpu().numpy()
-predicted_labels = (predicted_probs > 0.5).astype(int)
-
-# Compute metrics for undeclared transactions (class 0 as positive)
-accuracy = accuracy_score(true_labels, predicted_labels)
-precision = precision_score(true_labels, predicted_labels, pos_label=0)
-recall = recall_score(true_labels, predicted_labels, pos_label=0)
-f1 = f1_score(true_labels, predicted_labels, pos_label=0)
-roc_auc = roc_auc_score(true_labels, predicted_probs)
-pr_auc = average_precision_score(true_labels, predicted_probs, pos_label=0)
-conf_matrix = confusion_matrix(true_labels, predicted_labels)
-
-# Display results
-print(f"Accuracy:           {accuracy:.4f}")
-print(f"Precision (class 0):{precision:.4f}")
-print(f"Recall (class 0):   {recall:.4f}")
-print(f"F1 Score (class 0): {f1:.4f}")
-print(f"ROC AUC:            {roc_auc:.4f}")
-print(f"PR AUC (class 0):   {pr_auc:.4f}")
-conf_df = pd.DataFrame(
-    conf_matrix,
-    index=["Actual: Undeclared", "Actual: Declared"],
-    columns=["Predicted: Undeclared", "Predicted: Declared"]
-)
-print("Confusion Matrix:\n", conf_df)
-
-# Save metrics to outputs/test_metrics.txt
-metrics_txt_path = os.path.join('outputs', 'test_metrics.txt')
-with open(metrics_txt_path, 'w') as f:
-    f.write(f"Accuracy:           {accuracy:.4f}\n")
-    f.write(f"Precision (class 0):{precision:.4f}\n")
-    f.write(f"Recall (class 0):   {recall:.4f}\n")
-    f.write(f"F1 Score (class 0): {f1:.4f}\n")
-    f.write(f"ROC AUC:            {roc_auc:.4f}\n")
-    f.write(f"PR AUC (class 0):   {pr_auc:.4f}\n\n")
-    f.write("Confusion Matrix:\n")
-    conf_df.to_csv(f, sep='\t')
-print(f"[INFO] Test metrics saved to {metrics_txt_path}")
-
-print("[INFO] Saving model and graph to outputs directory...")
-# Save results to outputs directory for Azure ML
-os.makedirs('outputs', exist_ok=True)
-output_model_path = os.path.join('outputs', 'model_and_graph.pt')
-torch.save({
-    'model_state_dict': model.state_dict(),
-    'graph_data': data,
-}, output_model_path)
-print(f"[INFO] Model and graph saved to {output_model_path}")
-
-print("[INFO] Saving training data to outputs/train_edges.txt ...")
-train_txt_path = os.path.join('outputs', 'train_edges.txt')
-with open(train_txt_path, 'w') as f:
-    # Write header
-    attr_dim = train_edge_attr.shape[1] if len(train_edge_attr.shape) > 1 else 1
-    header = ["src", "dst", "label"] + [f"attr_{i}" for i in range(attr_dim)]
-    f.write("\t".join(header) + "\n")
-    # Write each edge
-    for i in range(train_edge_index.shape[1]):
-        src = train_edge_index[0, i].item()
-        dst = train_edge_index[1, i].item()
-        label = train_edge_label[i].item()
-        attrs = train_edge_attr[i].tolist() if attr_dim > 1 else [train_edge_attr[i].item()]
-        row = [str(src), str(dst), str(label)] + [str(a) for a in attrs]
-        f.write("\t".join(row) + "\n")
-print(f"[INFO] Training data saved to {train_txt_path}")
-
-# Save training log to outputs/train_log.txt
-log_txt_path = os.path.join('outputs', 'train_log.txt')
-with open(log_txt_path, 'w') as f:
-    for epoch, train_loss, val_acc in train_log:
-        f.write(f"Epoch {epoch:03d} | Train Loss: {train_loss:.4f} | Val Acc: {val_acc:.4f}\n")
-print(f"[INFO] Training log saved to {log_txt_path}")
-
 # Model configs
 model_configs = [
     ("GraphSAGE", GraphSAGE, {"in_channels": data.num_node_features, "hidden_channels": 64}),
@@ -198,6 +75,11 @@ model_configs = [
 ]
 
 all_metrics = []
+
+# Ensure outputs directory exists and print absolute path
+outputs_dir = os.path.abspath('outputs')
+os.makedirs(outputs_dir, exist_ok=True)
+print(f"[INFO] Outputs will be saved to: {outputs_dir}")
 
 for model_name, model_class, model_kwargs in model_configs:
     print(f"[INFO] Training {model_name}...")

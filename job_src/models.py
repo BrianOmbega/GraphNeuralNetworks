@@ -63,3 +63,19 @@ class GraphSAGE(torch.nn.Module):
         x = F.relu(self.conv1(x, edge_index))
         x = self.conv2(x, edge_index)
         return x
+
+
+
+
+class EdgeClassifier(torch.nn.Module):
+    def __init__(self, emb_dim, edge_feat_dim):
+        super(EdgeClassifier, self).__init__()
+        self.fc1 = torch.nn.Linear(2 * emb_dim + edge_feat_dim, 64)
+        self.fc2 = torch.nn.Linear(64, 1)
+
+    def forward(self, z, edge_index, edge_attr):
+        src = z[edge_index[0]]
+        dst = z[edge_index[1]]
+        x = torch.cat([src, dst, edge_attr], dim=1)
+        x = F.relu(self.fc1(x))
+        return torch.sigmoid(self.fc2(x)).squeeze()

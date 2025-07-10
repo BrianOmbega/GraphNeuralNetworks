@@ -4,7 +4,7 @@ from azure.identity import DefaultAzureCredential
 from azure.ai.ml import MLClient
 from azure.ai.ml import command
 from azure.ai.ml.entities import Environment
-from azure.ai.ml import Input
+from azure.ai.ml import Input, Output
 import time
 
 # NOTE: Data asset registration has been moved to register_data_assets.py.
@@ -18,6 +18,7 @@ subscription_id = os.getenv('AZURE_SUBSCRIPTION_ID')
 resource_group = os.getenv('AZURE_RESOURCE_GROUP')
 workspace_name = os.getenv('AZURE_WORKSPACE_NAME')
 compute_name = os.getenv('AZURE_COMPUTE_NAME')
+compute_instance = os.getenv('AZURE_COMPUTE_INSTANCE')
 
 # Connect to Azure ML workspace
 credential = DefaultAzureCredential()
@@ -53,24 +54,24 @@ except Exception:
     print(f"Registered environment: {custom_env.id}")
 
 # Submit train.py job to create the graph and save description
-print("Preparing to submit graph creation job...")
-graph_job = command(
-    code="./job_src",
-    command="python train.py --input_data ${{inputs.data}} --taxpayers_data ${{inputs.taxpayers}}",
-    environment=custom_env.id,
-    compute='bombega-ci',
-    display_name="gnn-create-graph-job",
-    inputs=dict(
-        data=Input(
-            type="uri_file",
-            path="azureml:all_transactions_337:1"
-        ),
-        taxpayers=Input(
-            type="uri_file",
-            path="azureml:all_taxpayers_csv:1"
-        )
-    )
-)
+# print("Preparing to submit graph creation job...")
+# graph_job = command(
+#     code="./job_src",
+#     command="python generate_graph.py --input_data ${{inputs.data}} --taxpayers_data ${{inputs.taxpayers}}",
+#     environment=custom_env.id,
+#     compute='bombega-ci',
+#     display_name="gnn-create-graph-job",
+#     inputs=dict(
+#         data=Input(
+#             type="uri_file",
+#             path="azureml:all_transactions_337:2"
+#         ),
+#         taxpayers=Input(
+#             type="uri_file",
+#             path="azureml:all_taxpayers_csv:2"
+#         )
+#     )
+# )
 # print("Graph creation job object created. Submitting to Azure ML...")
 # graph_job_result = ml_client.jobs.create_or_update(graph_job)
 # print(f"Graph creation job submitted. View at: {graph_job_result.studio_url}")
@@ -94,14 +95,52 @@ job = command(
     command="python load_and_train_graph.py --graph_data ${{inputs.graph}}",
     environment=custom_env.id,
     compute='bombega-ci',
-    display_name="gnn-train-graphsage-job",
+    display_name="gnn-train-gnn-job",
     inputs=dict(
         graph=Input(
             type="uri_file",
-            path="azureml:transaction_graph:1"  # Use the correct version
+            path="azureml:transaction_graph:2"  # Use the correct version
         )
     )
 )
 print("Job object created. Submitting to Azure ML...")
 returned_job = ml_client.jobs.create_or_update(job)
 print(f"Job submitted. View at: {returned_job.studio_url}")
+
+# # Submit generate_taxpayers.py job to generate synthetic taxpayers
+# print("Preparing to submit generate_taxpayers job...")
+# generate_taxpayers_job = command(
+#     code="./job_src",
+#     command="python generate_taxpayers.py",
+#     environment=custom_env.id,
+#     compute='bombega-ci',
+#     display_name="gnn-generate-taxpayers-job",
+#     outputs={
+#         "output_csv": Output(type="uri_file")
+#     }
+# )
+# print("Job object created. Submitting to Azure ML...")
+# generate_taxpayers_job_result = ml_client.jobs.create_or_update(generate_taxpayers_job)
+# print(f"Generate taxpayers job submitted. View at: {generate_taxpayers_job_result.studio_url}")
+
+# Submit generate_1M_transactions.py job to generate 1M synthetic transactions
+# print("Preparing to submit generate_1M_transactions job...")
+# generate_transactions_job = command(
+#     code="./job_src",
+#     command="python generate_transactions.py --taxpayers_csv ${{inputs.taxpayers}}",
+#     environment=custom_env.id,
+#     compute=compute_instance,
+#     display_name="gnn-generate-1M-transactions-job",
+#     inputs={
+#         "taxpayers": Input(
+#             type="uri_file",
+#             path="azureml:all_taxpayers_csv:2"
+#         )
+#     },
+#     outputs={
+#         "output_csv": Output(type="uri_file")
+#     }
+# )
+# print("Job object created. Submitting to Azure ML...")
+# generate_transactions_job_result = ml_client.jobs.create_or_update(generate_transactions_job)
+# print(f"Generate 1M transactions job submitted. View at: {generate_transactions_job_result.studio_url}")

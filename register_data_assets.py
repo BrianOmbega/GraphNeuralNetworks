@@ -30,27 +30,41 @@ ml_client = MLClient(
 
 # List of data assets to register (add more as needed)
 data_assets = [
-    {
-        'name': 'all_taxpayers_csv',
-        'path': 'data assets/all_taxpayers_337.csv',
-        'description': 'VAT data CSV',
-        'version': '1',
-        'type': 'uri_file'
-    },
-    {
-        'name': 'all_transactions_337',
-        'path': 'data assets/all_transactions_337.csv',
-        'description': 'VAT transaction data CSV',
-        'version': '1',
-        'type': 'uri_file'
-    },
+    # {
+    #     'name': 'all_taxpayers_csv',
+    #     'path': 'data assets/non_individuals_50000.csv',
+    #     'description': 'VAT data CSV',
+    #     'version': '2',
+    #     'type': 'uri_file'
+    # }
+    # {
+    #     'name': 'all_transactions_337',
+    #     'path': 'data assets/all_transactions_337.csv',
+    #     'description': 'VAT transaction data CSV',
+    #     'version': '1',
+    #     'type': 'uri_file'
+    # },
     {
     'name': 'transaction_graph',
     'path': 'data assets/graph_data.pt',
     'description': 'VAT transaction graph ',
+    'version': '2',
+    'type': 'uri_file'
+    },
+    {
+    'name': 'graph_description',
+    'path': 'data assets/graph_description.txt',
+    'description': 'VAT graph description txt ',
     'version': '1',
     'type': 'uri_file'
-    }
+    },
+    # {
+    #     'name': 'all_transactions_337',
+    #     'path': 'data assets/synthetic_transactions.csv',
+    #     'description': 'VAT transaction data CSV',
+    #     'version': '2',
+    #     'type': 'uri_file'
+    # }
 
     # Add more assets here
 ]
